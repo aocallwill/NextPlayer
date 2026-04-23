@@ -131,6 +131,7 @@ DEL2 	ld a,(hl) ;vlastní přesun
 		ld (hl)," " ;je zapsána mezera
 		ret ;návrat na IN2
 delka_souboru	defw 0
+
 INKEY 	halt 
 		xor  a				           
          ld   (aLAST_KEY+1),a		 
@@ -355,8 +356,10 @@ txtWait		defb	"Please wait:",0
 txtShrek	defb	"Main program: Shrek/MB Maniax",0
 txtPress	defb 	"    Press any key to continue",0
 txtBorik	defb 	"AY play rutines: mborik/SinDiKat",0
-txtThanks	defb	"Big thanks: ped7g, z00m, Logout",0
-txtVersion	defb 	"0.61",0
+txtThanks	defb	"Big thanks: ped7g, z00m",0
+txtVersion	defb 	"0.7",0
+
+
 demo:       di      
 
 F_OPEN                      equ $9A
@@ -437,7 +440,7 @@ podbarvi3	ld (hl),%01000111
 			ld bc,$123b
             ;nextreg #03,1
 			nextreg #07,3             ;28MHz - jen kvůli načítání (rychlost)
-			
+			call MOUSE_INIT 
 			call BUFF83
 			
             ld (staksto),sp   ;save BASIC's stack pointer
@@ -747,6 +750,7 @@ HLSMYC0
 		 ld (LAST_KEY+1),a
 		 jr SEDI_KEY
 hl0		 
+		 call MOUSE_TICK 
 		 call KEYSCAN			       
 
 		 ld   a,e
@@ -3433,7 +3437,7 @@ kk		ld (hl),a
 
               ret
 
-Versionn  defb "Version: 0.61",0
+Versionn  defb "Version: 0.7",0
 Cursors defb " ",0
 Play    defb "Main program: Shrek",0 
 NextPlay defb "AY routines: mborik",0
@@ -4046,6 +4050,10 @@ font:
 		db	$00, $28, $50, $00, $00, $00, $00, $00
 		db	$00, $78, $84, $B4, $B4, $84, $78, $00
  
+; --- Mouse driver + support (za font: aby font zustal pod $8000) ---
+			INCLUDE "driver.a80"
+			INCLUDE "mouse_support.asm"
+; ---
 pos:		dw	0
 roll:		db	0
 txtbuf:		ds	44
@@ -4059,6 +4067,8 @@ DOWNDATA equ $e000
 UPDATA   equ DOWNDATA + 4*8*17
 bufscr equ $e000
 KKK
+			DISPLAY "KKK: ",/A,$
+			DISPLAY "font: ",/A,font
 		
 			org #9000
 txtbuff    ds 100
@@ -4232,6 +4242,7 @@ sappp0		ld a,(de)
 		pop bc
 		pop de
 		pop hl
+			call MOUSE_PLAY_TICK
 		
 		call	stc.music_play
 		xor a
@@ -4379,6 +4390,7 @@ stappp0		ld a,(de)
 		pop bc
 		pop de
 		pop hl
+			call MOUSE_PLAY_TICK
 		
 		call	stp.music_play
 		xor a
@@ -4507,6 +4519,7 @@ appp0		ld a,(de)
 		pop bc
 		pop de
 		pop hl
+			call MOUSE_PLAY_TICK
 		
 		call	SQ_PLAY
 		xor a
@@ -5554,6 +5567,7 @@ LOOP	HALT
 		pop bc
 		pop de
 		pop hl
+			call MOUSE_PLAY_TICK
 		
 		CALL VTPL.PLAY
 		ld a,(klavesa)
@@ -10258,6 +10272,11 @@ screen 			incbin	logo.bin
 
 
 esxError        ds      34
+
+mouse_sipka_data:
+        incbin "sipka.spr"
+
+
 			  CSPECTMAP player.map
 
               savenex open "NextPlayer.nex",demo,24575
