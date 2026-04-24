@@ -18,6 +18,8 @@ dos_catalog   equ  #011E         ;the DOS routine to call
 filename 	  ds   15
 typ 		  equ $-4
 pocetpolozek	equ 231
+KEY_FIRST_DELAY	equ 1		; haltu pred zpracovanim prvniho stisku
+KEY_REPEAT_DELAY equ 20		; haltu mezi auto-repeat (vetsi = pomalejsi)
 virtmem			defb 0
 maxlen			equ 128
 maxline 		equ 37
@@ -357,7 +359,7 @@ txtShrek	defb	"Main program: Shrek/MB Maniax",0
 txtPress	defb 	"    Press any key to continue",0
 txtBorik	defb 	"AY play rutines: mborik/SinDiKat",0
 txtThanks	defb	"Big thanks: ped7g, z00m",0
-txtVersion	defb 	"0.7",0
+txtVersion	defb 	"0.71",0
 
 
 demo:       di      
@@ -772,9 +774,14 @@ HLSM2    ld   d,0
          
 LAST_KEY ld   b,0
          cp   b
-         jr   z,SEDI_KEY
-         
-         ld   b,1
+         jr   nz,nk_first	; nova klavesa -> rychla odezva
+         ; stejna klavesa = auto-repeat: pockat N haltu
+         ld   b,KEY_REPEAT_DELAY
+nk_rep   halt
+         djnz nk_rep
+         jr   SEDI_KEY
+nk_first
+         ld   b,KEY_FIRST_DELAY	; prvni stisk
 LOOP_LST halt 
          djnz LOOP_LST
          
@@ -2428,9 +2435,89 @@ sACB
 
 ;Skok na další skladbu		 
 nextsong
-		 call DOWN
 
-;Stisk klávesy ENTER. 
+		; Krok 1: je aktualni polozka adresar? -> nuluj endsong + ret
+		ld a,(POS_F+1)
+		ld e,a
+		ld d,0
+		ld hl,(apos_all)
+		add hl,de
+		ld a,l
+		or h
+		ld hl,catbuff+#D
+		jr z,nxs1_done
+		ld hl,(apos_all)
+		ld b,h
+		ld c,l
+		ld de,13
+		ld hl,catbuff+#D
+nxs1_lp	add hl,de
+		dec bc
+		ld a,c
+		or b
+		jr nz,nxs1_lp
+nxs1_done
+		push hl
+		pop ix
+		call BUFF83
+		bit 7,(ix+7)
+		call NOBUFF83
+		jr z,nxs_go_down
+		xor a
+		ld (endsong),a
+		ret
+nxs_go_down
+
+		; Krok 2: uloz apos_all + DOWN
+		ld hl,(apos_all)
+		ld (nxs_apos_save),hl
+		call DOWN
+
+		; Krok 3: pohnul se DOWN? Pokud ne = posledni soubor -> ret
+		ld hl,(nxs_apos_save)
+		ld de,(apos_all)
+		or a
+		sbc hl,de
+		jr nz,nxs_after_down
+		xor a
+		ld (endsong),a
+		ret
+nxs_after_down
+
+		; Krok 4: je nova polozka adresar? -> nuluj endsong + ret
+		ld a,(POS_F+1)
+		ld e,a
+		ld d,0
+		ld hl,(apos_all)
+		add hl,de
+		ld a,l
+		or h
+		ld hl,catbuff+#D
+		jr z,nxs4_done
+		ld hl,(apos_all)
+		ld b,h
+		ld c,l
+		ld de,13
+		ld hl,catbuff+#D
+nxs4_lp	add hl,de
+		dec bc
+		ld a,c
+		or b
+		jr nz,nxs4_lp
+nxs4_done
+		push hl
+		pop ix
+		call BUFF83
+		bit 7,(ix+7)
+		call NOBUFF83
+		jr z,nxs_fire
+		xor a
+		ld (endsong),a
+		ret
+nxs_fire
+		; Nova polozka je soubor -> propadni do FIRE
+
+;Stisk klavesy ENTER.
 FIRE
 		 nextreg #07,3   
 		 call savescr 
@@ -2724,6 +2811,7 @@ F1
 		ld hl,endsong
 		ld (hl),a
 ;		jp playmusic
+nxs_apos_save	defw 0
 navrat
 		halt
 		call loadscr
@@ -3437,7 +3525,7 @@ kk		ld (hl),a
 
               ret
 
-Versionn  defb "Version: 0.7",0
+Versionn  defb "Version: 0.71",0
 Cursors defb " ",0
 Play    defb "Main program: Shrek",0 
 NextPlay defb "AY routines: mborik",0
